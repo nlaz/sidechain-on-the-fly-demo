@@ -3,7 +3,7 @@ const fs = require('fs');
 const { PassThrough } = require('stream');
 
 const dynamicMixStream = new PassThrough();
-let currentProcess;
+let silentProcess;
 
 const THRESHOLD = 0.02;
 const RATIO = 4;
@@ -11,21 +11,31 @@ const ATTACK = 20;
 const RELEASE = 300;
 
 function startContinuousStream() {
-  currentProcess = spawn('ffmpeg', [
-    '-f', 'lavfi',
-    '-i', 'anullsrc=r=44100:cl=stereo',
+  silentProcess = spawn('ffmpeg', [
+    '-re',
+    '-stream_loop', '-1',
+    '-f', 'mp3',
+    '-i', 'silence.mp3',
     '-f', 's16le',
     '-acodec', 'pcm_s16le',
     '-ar', '44100',
     '-ac', '2',
     'pipe:1'
   ]);
-  currentProcess.stdout.pipe(dynamicMixStream, { end: false });
+
+  silentProcess.stderr.on('data', (data) => {
+    console.error(`Silent Process stderr: ${data}`);
+  });
+
+  silentProcess.stderr.on('error', (err) => {
+    console.error(`Silent Process error: ${err}`);
+  });
+  silentProcess.stdout.pipe(dynamicMixStream, { end: false });
 }
 
 function triggerPCMProcess() {
-   if (currentProcess) {
-    currentProcess.kill();
+   if (silentProcess) {
+    silentProcess.kill();
   }
 
   const pcmProcess = spawn('ffmpeg', [
@@ -34,7 +44,7 @@ function triggerPCMProcess() {
     '-acodec', 'pcm_s16le',
     '-filter_complex', 'adelay=500[delayed]',
     '-map', '[delayed]',
-    '-ar', '44100',
+    '-ar', '48000',
     '-ac', '2',
     'pipe:1'
   ]);
@@ -45,11 +55,35 @@ function triggerPCMProcess() {
     console.error(`PCM Process stderr: ${data}`);
   });
 
+  pcmProcess.stderr.on('error', (err) => {
+    console.error(`PCM Process error: ${err}`);
+  });
+
   pcmProcess.on('close', (code) => {
     console.log(`PCM Process exited with code ${code}`);
     startContinuousStream();
   });
 }
+
+const currentTrackProcess = spawn('ffmpeg', [
+  '-re',
+  '-f', 'mp3',
+  '-i', "grooves.mp3",
+  '-f', 's16le',
+  '-acodec', 'pcm_s16le',
+  '-ar', '44100',
+  'pipe:1'
+]);
+
+currentTrackProcess.stderr.on('data', (data) => {
+  console.error(`Current Track Process stderr: ${data}`);
+});
+
+currentTrackProcess.stderr.on('error', (err) => {
+  console.error(`Current Track Process error: ${err}`);
+});
+
+const output = fs.createWriteStream('output.mp3');
 
 const filterProcess = spawn('ffmpeg', [
   '-re',
@@ -57,36 +91,41 @@ const filterProcess = spawn('ffmpeg', [
   '-ar', '44100',
   '-ac', '2',
   '-i', 'pipe:0',
-  '-f', 'mp3',
-  '-re', 
-  '-stream_loop', '-1',
-  '-i', 'grooves.mp3',
-  '-f', 'mp3',
+  '-re',
+  '-f', 's16le',
+  '-ar', '44100',
+  '-ac', '2',
+  '-i', 'pipe:0',
   '-filter_complex', 
-  '[0:a]asplit=2[vocals_for_sidechain][vocals_for_mix];' +
-  `[1:a][vocals_for_sidechain]sidechaincompress=threshold=${THRESHOLD}:ratio=${RATIO}:attack=${ATTACK}:release=${RELEASE}[compressed_main];` +
-  '[compressed_main][vocals_for_mix]amix=inputs=2:duration=longest[mix];',
+  '[0:a][1:a]amix=inputs=2:duration=longest[mix]',
   '-map', '[mix]',
+  '-f', 'mp3',
+  '-ar', '48000',
+  '-ac', '2',
+  '-b:a', '192k',
   'pipe:1'
 ]);
 
-const output = fs.createWriteStream('output.mp3');
+filterProcess.stderr.on('data', (data) => {
+  console.error(`👋 Filter Process stderr: ${data}`);
+});
+
+filterProcess.stderr.on('error', (err) => {
+  console.error(`👋 Filter Process error: ${err}`);
+});
 
 startContinuousStream();
 dynamicMixStream.pipe(filterProcess.stdin);
+currentTrackProcess.stdout.pipe(filterProcess.stdin);
 filterProcess.stdout.pipe(output);
 
 setTimeout(() => {
   triggerPCMProcess();
-}, 5000);
+}, 10000);
 
 setTimeout(() => {
   triggerPCMProcess();
-}, 13000);
-
-filterProcess.stderr.on('data', (data) => {
-  console.error(`Filter Process stderr: ${data}`);
-});
+}, 15000);
 
 output.on('finish', () => {
   console.log('Processing completed. Output saved to output.mp3');
