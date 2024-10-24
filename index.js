@@ -31,8 +31,8 @@ function triggerPCMProcess() {
 
   const pcmProcess = spawn('ffmpeg', [
     '-i', 'bumper.mp3',
-    '-f', 's16le',
-    '-acodec', 'pcm_s16le',
+    '-f', 'mp3',
+    '-acodec', 'mp3',
     '-filter_complex', 'adelay=500[delayed]',
     '-map', '[delayed]',
     '-ar', '44100',
@@ -54,9 +54,7 @@ function triggerPCMProcess() {
 
 const filterProcess = spawn('ffmpeg', [
   '-re',
-  '-f', 's16le',
-  '-ar', '44100',
-  '-ac', '2',
+  '-f', 'mp3',
   '-i', 'pipe:0',
   '-f', 'mp3',
   '-re',
