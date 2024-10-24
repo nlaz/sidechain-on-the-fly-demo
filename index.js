@@ -12,10 +12,11 @@ const RELEASE = 300;
 
 function startContinuousStream() {
   currentProcess = spawn('ffmpeg', [
-    '-f', 'lavfi',
-    '-i', 'anullsrc=r=44100:cl=stereo',
-    '-f', 's16le',
-    '-acodec', 'pcm_s16le',
+    '-re',
+    '-stream_loop', '-1',
+    '-i', 'silence.mp3',
+    '-f', 'mp3',
+    '-acodec', 'mp3',
     '-ar', '44100',
     '-ac', '2',
     'pipe:1'
