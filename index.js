@@ -58,10 +58,10 @@ const filterProcess = spawn('ffmpeg', [
   '-ac', '2',
   '-i', 'pipe:0',
   '-f', 'mp3',
-  '-re', 
+  '-re',
   '-i', 'grooves.mp3',
   '-f', 'mp3',
-  '-filter_complex', 
+  '-filter_complex',
   '[0:a]asplit=2[vocals_for_sidechain][vocals_for_mix];' +
   `[1:a][vocals_for_sidechain]sidechaincompress=threshold=${THRESHOLD}:ratio=${RATIO}:attack=${ATTACK}:release=${RELEASE}[compressed_main];` +
   '[compressed_main][vocals_for_mix]amix=inputs=2:duration=shortest[mix];',
